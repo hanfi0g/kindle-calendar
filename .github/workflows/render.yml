@@ -1,0 +1,44 @@
+name: render-calendar
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"   # 每 30 分钟（GitHub 定时任务可能延迟几分钟）
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: render
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps
+        run: pip install -q pillow lunar_python
+      - name: Render
+        env:
+          CAL_CITY: 上海
+          CAL_LAT: "31.23"
+          CAL_LON: "121.47"
+        run: python render.py
+      - name: Publish to display branch
+        run: |
+          cd out
+          touch .nojekyll
+          git init -q -b display
+          git config user.name  "calendar-bot"
+          git config user.email "calendar-bot@users.noreply.github.com"
+          git add -A
+          git commit -q -m "render $(TZ=Asia/Shanghai date '+%F %R')"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" display
